@@ -1,0 +1,316 @@
+ orchestration tools:
+ docker swarm, kubernetes, apache mesos
+
+kubernetes architecture:
+node - machine physical or virtual machine
+cluster - set of nodes grouped together
+master - another node with kubernetes installed and configured as master. watches over nodes and orchestrates on worker nodes
+
+kubernetes components:
+API server - frontend/first point of contact between user and cluster
+etcd key store - stores all data used to manage cluster
+scheduler - looks for newly created containers and assignes them to nodes
+controllers - brain of orchestration. looks if node, endpoint, container goes down and put it up
+container runtime - software running containers ex. docker
+kubelet - agent that runs on each node. responsible for making sure containers are running as expected
+
+master has got following components:
+-> kube-apiserver - communicates with kubelets
+-> etcd
+-> controller
+-> scheduler
+
+worker has got following components:
+-> kubelet
+-> container runtime (with container runtime interface)
+
+kubectl:
+kubectl run <cluster-name> - running cluster
+kubectl cluster-info - show cluster info
+kubectl get nodes - lists the nodes
+
+docker vs containerd:
+since kubernetes gained much popularity, it developed container runtime interface to operate with other container runtimes than docker
+OCI (open container initiative) set rules for imagespec and runtimespec. it's a standard for containers
+since docker is not only container runtime, but also comes with set of tools, it needed dockershim to work with kubernetes
+containerd is CRI compatible (unlike docker as clean software)
+containerd is basically container runtime for kubernetes - all images for docker are applicable for containerd
+
+containerd is separate own project as a member of CNCF
+command line tools:
+ctr - a CLI tool for containerd (not very user friendly)
+nerdctl - commandline similar to docker (user friendly)
+
+crictl - used to interact with container runtime interface (from kubernetes perspective) and works across different runtimes
+       - usually used for special debugging purposes
+
+pod - single instance of application
+    - smallest part of cluster in kubernetes
+    - container is encapsulated in kubernetes object
+    - usually 1:1 relation with container
+    - when scalling, additional pods are deployed
+    - can have multiple containers (but not the same kind!) usually helper container that cooperate with the other inside pod
+    - if main application in pod dies, the helper dies as well (since they are both in the same pod)
+    
+kubectl run <docker-image-name> - creates a single pod with container in a cluster (pulls image from repository)
+kubectl get pods - prints all the pods in the cluster
+kubectl get pods -o wide - option wide, it's get pods with wider description
+kubectl run <name-of-pod> --image=<name-of-image-on-docker-registry>
+
+kubectl describe pod <name-of-pod> - gets details of pod
+kubectl create deployment <name-of-deployment> --image=<name-of-image>
+
+
+creating pod with yaml schema:
+
+apiVersion: <version-of-kubernetes-api> v1 (v1 is for pods)
+kind: <Pod/ReplicaSet/Deployment/Service>
+metadata:
+  name: <name-of-pod>
+  labels:
+    <any-key>: <any-value>
+    app: <ex. name-of-app>
+    type: <ex. front-end>
+    ...: ...
+spec:
+  containers:        <list>
+    - name: <name-of-container>
+      image: <name-of-image-in-docker-registry>
+
+
+kubectl create -f <name-of-kubernetes-pod-definition.yaml> - creates pod based on yaml file
+kubectl describe pod <name-of-pod> - prints details of pod
+kubectl edit pod <name-of-pod> - editing pod
+kubectl apply -f <name-of-kubernetes-pod-definition.yaml> - applies changes to pod
+
+
+controllers: there are many types one of it is replication controller
+why we need it? - it provides high availability, it means when one pod goes down, it brings new pod to life
+
+replication controllers and replicasets:
+replication controller reassures that requested number of pods are running.
+
+replication controller and replicaset have the same purpose, but are not the same things.
+replication controller is older technology being replaced by replicaset
+there minor differences but works basically the same.
+
+replication controller definition yaml:
+rc-definition.yaml
+
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: <name-of-controller>
+  labels:
+    app: <name-of-app>
+    type: <name-of-type>
+spec:
+  template:
+    metadata:
+      name: <name-of-pod>
+      labels:
+        <any-key>: <any-value>
+        app: <ex. name-of-app>
+        type: <ex. front-end>
+        ...: ...
+    spec:
+      containers:        <list>
+      - name: <name-of-container>
+        image: <name-of-image-in-docker-registry>
+  replicas: 3
+
+replicaset definition yaml:
+replicaset-definition.yaml
+
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: <name-of-replicaset>
+  labels:
+    app: <name-of-app>
+    type: <name-of-type>
+spec:
+  template:
+    metadata:
+      name: <name-of-pod>
+      labels:
+        app: <name-of-app>
+        type: <name-of-type>
+    spec:
+      containers:
+      - name: <name-of-container>
+        image: <name-of-image-in-docker-registry>
+  replicas: 3
+  selector:
+    matchLabels:
+      type: <name-of-type>
+
+if we have matchLabels, is template section really needed? Yes because when pod fails it has to know which container/image for new pod it needs to re-deploy.
+
+labels and selectors:
+are meant for easier selection and grouping resources (pods) with labels
+
+kubectl replace -f <file-name> - specify and replace the same file
+kubectl scale --replicas=6 -f <file-name> - changing number of replicas (not temporary)
+
+deployments:
+kubernetes object which is higher in hierarchy than pods and replica sets. (pod<replica set<deployment)
+options of deployment in kubernetes:
+1. deploy in production env
+2. upgrade docker instances seamlessly
+3. rolling updates (1 by 1 instance)
+4. rollback changes recently carried out
+5. apply the pause or resume deployment
+
+kubectl create deployment <example-deployment> --image=<image-name> --replicas=3 --node-selector=<selector-key>:<selector-name> - creating deployment with cli
+
+definition of deployment:
+deployment-definition.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: <deployment-name>
+  labels:
+    <name-of-label>: <label-definition>
+spec:
+  template:
+    metadata:
+      name: <app-name>
+      labels:
+        <name-of-label>: <label-definition>
+    spec:
+      containers:
+      - name: <container-name>
+        image: <image-name-from-docker-registry>
+  replicas: <number-of-replicas>
+  selector:
+    matchLabels:
+      <name-of-label>: <label-definition>
+
+kubectl get all - prints all kubernetes objects including deployments
+
+rollout - provides an option to getback to previous revision with all deployment and pods inside
+
+kubectl rollout status <deployment-name>
+kubectl rollout history <deployment-name> - shows many revisions which were 
+
+deployment strategy:
+1) recreate strategy: destroy all, and re-create (problem with application down for this time)
+2) rolling update (default): destroy and re-create one-by-one
+
+kubectl apply -f <deployment-definition.yaml> - applies changes in definition file
+
+kubectl rollout undo <deployment-name> - rollback: destroys the pods in new replicaset and restores in old replicaset
+
+networking in kubernetes:
+- node has an ip address (machine has got other ip!)
+- pod has an ip address assigned (unlike in docker where container has ip assigned) in range 10.244.X.X
+when kubernetes is configured it deploys internal vnet with 10.244.0.0 ip with all the pods attached to it.
+each pod obtains its own ip from this pool.
+
+how does it work with multiple nodes?
+each node has got other ip address
+inside each node there is a separate internal vnet with the same ip: 10.244.0.0 by default which does not provide good connection.
+this is why we need to set all the networking up on kubernetes cluster with tools such as kaliko.
+
+tool such as kaliko, runs on kubernetes cluster (probably master node) and provides each node a separate ip for it's internal vnet
+
+kubernetes services:
+enables communication between various components with outside cluster apps or users.
+also provides connection between separated group of pods inside the cluster. such as:
+
+kubernetes service is an object just like pod, replicaset, or deployment.
+it listens to nodes port and forwards it to internal vnet port where pod runs an application
+It is called NodePort service.
+
+Services Types:
+NodePort - internal pod is accessible on port on the node (ports: 30000 - 32767)
+ClusterIP - service creates virtual ip inside the cluster to enable communication between different services (like frontend-backend)
+Load Balancer - enables load balancer which distributes load along different pods
+
+NodePort Service:
+Service itself is a server inside the node which has its own ip.
+It provides connection between TargetPort in pod, and port in service.
+Then it provides connection between NodePort and Port on service.
+
+
+definition:
+service-definition.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: <name-of-service>
+
+spec:
+  type: NodePort
+  ports:
+    - targetPort: 80 (by default the same as port)
+      port: 80
+      nodePort: 30008
+  selector:
+    <name-of-label>: <label-content> - this maps service with specific pods!
+
+if there are more than one pod which matches the tag in selector, NodePort Service automaticaly
+connects to several pods and acts as a load balancer with random algorithm.
+
+with multiple nodes, without any additional config, service is set for multiple nodes automatically.
+so if node has got an ip 192.168.1.2 and second node 192.168.1.3 you can get into the port either from both of that ips.
+
+
+kubectl get services - prints all the services
+
+
+ClusterIP Service:
+having ClusterIP each layer of pods (such as frontend group, backend group) can scale without worry about communication
+ 
+definition:
+service-definition.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: <name-of-service>
+
+spec:
+  type: ClusterIP
+  ports:
+    - targetPort: 80 - port where layer of pods is exposed
+      port: 80 - port where service is exposed
+
+  selector:
+    <name-of-label>: <label-content>
+
+
+Load Balancer Service:
+say we've got several node which have their own ips. on each node there is port exposed to reach front-end application.
+normally load balancer would be a separate VM to regulate load to each of these ip's:ports.
+on cloud native providers, we can use a native load balancers with such setup:
+
+service-definition.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: <name-of-service>
+
+spec:
+  type: LoadBalancer
+  ports:
+    - targetPort: 80
+      port: 80
+      nodePort: 30008
+
+
+Microservices architecture:
+deploying a service is needed when application must be accessed by others (either from NodePort service or ClusterID service)
+
+When deploying a service with not specified type, by default it is ClusterIP.
+kubectl get svc - prints the services running on cluster
+kubectl get pods,svc - prints boundled pods and services (works for other types too)
+
+
+kubernetes on cloud:
+in general cloud providers gives us a kubernetes as a service tool like AKS or EKS.
+
+jobs <--- kind of kubernetes object that runs only once when triggered

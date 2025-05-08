@@ -1,0 +1,128 @@
+docker pull <docker-image name> - downloads docker image without
+
+docker exec <container name> command - execute a command inside docker container
+
+docker run -d - -d stands for de-attached mode, in background.
+docker run <name-of-image>:<version> - run version of image
+
+docker run --name <name-of-container> - run container with name as set
+
+docker run -i <name> - turns on the interactive mode of running docker image
+docker run -t <name> - interactive terminal of container (usually runs together as -it)
+
+docker run -p <docker-host-port:docker-container-port> - this method is also done for running multiple instances of the same app in different ports
+
+docker run -v <directory-of-persistent-volume>:<directory-of-data-in-container> - mapping persistent volume as data source for container
+
+docker inspect <container-name or id> - returns json format of details for container
+
+docker logs <container-name or id> - returns logs from container
+
+docker history <image-name> - returns info regarding sizes of packages installed etc.
+
+docker build -t <tag-for-the-image> . - creating image from dockerfile
+
+docker push <tag-for-the-image> - push to docker registry
+
+docker images | wc -l - count docker images
+
+Dockerfiles:
+FROM <base-os, or other-image-from-docker-registry>
+RUN <installing dependencies such apt-get update, install etc>
+COPY <directory-local-from-where-to-copy> <directory-in-container-when-created>
+        copying files from local system to directory selected in image
+ENTRYPOINT command which will run when image will be run as a container
+
+enviroment variable:
+docker run -e ENV_VAR_NAME="something" <docker-image-name>
+
+
+docker linking:
+
+docker run --link <container-name:host-name> 
+        - command establishes connection for follwing container to connect to selected container instance
+        - can be multiple links added to one docker run
+
+docker compose schema:
+docker-compose.yaml
+
+version: 2
+services:
+        <name-of-container>:
+        image: <name-of-image> or build: <directory-with-Dockerfile-and-application>
+        ports:
+        - <docker-host-port:docker-container-port>
+        links:
+        - <name-of-container-to-be-linked-to>
+        enviroment:
+                ENV_NAME: tralala
+
+docker compose versions differs with schema but does the same work - remember about that
+
+docker engine = docker deamon + rest api + docker cli
+docker -H=remote-docker-engine:<port> - connect CLI to remote docker engine
+example: docker -H=10.123.2.1:2375 run nginx
+
+docker run --cpus=.5 ubuntu -cpu limitation for the container
+docker run --memory=100m ubuntu -memory limitation for the container
+
+docker storage:
+/var/lib/docker - default directory for saving all docker file
+
+docker images is based on layers - look at Dockerfile schema
+if docker sees that you already have an image where 3 layers are the same, it takes it instead of installing it from scratch
+
+when docker creates a new container it adds additional layer to image layers which is editable
+example: since application code is loaded while building image, it is read only. and file which is saved by app is saved in read/write container layer
+
+
+docker volume: (persistent volume)
+docker volume create <name-of-volume> - creates a persistent volume
+volume mounting:
+docker run -v <name-of-volume>:<directory-inside-the-container> <name-of-image> - running docker container with PV mounted
+
+bind mounting:
+docker run -v <directory-outside-of-container>:<directory-inside-the-container> <name-of-image> - running docker container with binded folder as PV
+
+new style of write:
+docker run --mount type=bind,source=<directory-outside-of-container>,target=<directory-inside-the-container> <name-of-image>- setting up docker container in new schema
+
+docker networking:
+docker installs 3 networks automatically - bridge, none and host
+docker run <image-name> --network=<network-name>
+bridge - private internal network of docker, all new running containers takes it as a default
+none - totally isolated network for each container
+host - network of host, doesn't require port mapping
+
+docker network create --driver <example-bridge> --subnet <subnet-ip> <network-name> - creating docker network
+docker network ls - list all the networks
+inside docker network you can connect with other container using container names - it has embedded DNS inside each network
+
+docker registry:
+docker image tag <name-of-image> <source-ip>:<port>/<name-of-image> - adding tag to image on localhost
+
+docker push <tag-of-image> - pushing docker image to repository
+docker pull <tag-of-image> - pulling docker image from repository
+
+docker on windows:
+1) first option is to install docker toolbox which is oracle virtual box and linux on top of which is docker
+2) second is docker desktop for windows set on microsoft hyper-v instead of oracle virtual box
+
+unlike in linux containers - there are two options of windows container:
+windows server container and hyper-v isolation
+
+container orchestration:
+- high scalability and availability by running multiple container instances on multiple nodes
+- good observability of multiple nodes
+
+kubernetes basics
+
+main kubernetes components when installing kubernetes:
+API server - first point of contact with the user to control clusters
+etcd - key-value store. used to store all data used to manage cluster
+kubelet - agent running on each node on cluster. makes sure that containers are running as expected.
+container runtime - underlying software to run containers. Such docker.
+controller - brain of orchestration. they notice if container, endpoint, node is down. Makes decision to run a new container.
+scheduler - distributing workload across multiple nodes. Assigns newly created containers to nodes
+
+kubectl - kube control tool

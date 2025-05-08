@@ -1,0 +1,211 @@
+helm can be called a package manager for kubernetes
+it treats our kubernetes resources as apps not banch of abstract elements
+
+helm2:
+tiller - god mode controller to handle cluster
+
+helm3:
+no tiller - cluster access based on RBAC
+3 way strategic merge patch - when a change in cluster is done outside of helm, it is not a revision in helm.
+                                when doing rollback in helm3 it compares live state of cluster to expected revision
+apiversion: v2
+
+helm components:
+helm cli - command line utility where we can perform helm actions
+helm actions - installing chart, upgrade, rollback etc
+helm chart - set of files that contains instructions of creating set of objects for demanded app
+helm release - created when chart is applied to cluster. in each release there are multiple revisions
+revision - snapshot of an application
+metadata - helm data kept as secret in cluster. info of all what helm did on cluster
+
+inside kubernetes manifests, there are {{}} used. it is called templating in helm
+
+artifacthub.io - search page for helm charts, which stores all charts from host pages
+
+helm charts:
+each structure of helm chart contains of following:
+template - kubernetes manifests with templating
+values.yaml - variables from which templates are taken
+chart.yaml - contains info about chart itself
+
+chart.yaml:
+apiVersion: v2 - depends of helm3 api
+appVersion: 1.0 - version of app we deploy
+version: 1.1.1 - version of chart itself (independent from app)
+name:
+description:
+type: application/library - normally application
+dependencies: - what else must be installed before application. for example db and wordpress
+  - condition:
+    name:
+    repository:
+    version: 
+keywords: - keywords used for easier navigate in repo
+maintainers: - info about maintainers. simply.
+home:
+
+directory structure:
+/chart
+    /templates
+        template1.yaml
+        template2.yaml
+    /charts
+        chart1.yaml
+        chart2.yaml
+    values.yaml
+    chart.yaml
+    LICENSE
+    README.md
+
+working with helm:
+helm --help
+
+normally when we want to deploy application we need to go to artifacthub first and check how to deploy it with helm
+helm repo add <source-site> <url> - adding repository
+helm install <name> <source-site>/name - installing app in cluster
+helm search wordpress
+
+once we identify the chart we can deploy it:
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install my-release bitnami/wordpress
+
+helm list - it lists all the releases of applications
+helm uninstall my-release - simply uninstalling app
+
+customizing chart parameters:
+helm install --set nameFromValues="value" my-release bitnami/wordpress - setting value from values to demanded one
+
+we can also create custom values.yaml with values to be overwritten. then do:
+helm install --values custom-values.yaml my-release bitnami/wordpress
+
+helm pull bitnami/wordpress - pulls the chart in archive/compressed from
+helm pull --untar bitnami/wordpress
+under this we can see all the files of the chart where we can customize it
+
+helm install my-release ./<directory-local> - to install it when pulled the chart locally
+
+lifecycle management with helm:
+helm upgrade my-release bitnami/wordpress - upgrading to lates version of chart
+helm history my-release - lists all revisions of single release
+helm rollback my-release 1 - creates a new revision with configuration from revision 1
+
+persistent volumes or external db will not be restored, and its data is not being controlled by helm.
+
+writing a helm chart:
+helm create nginx-chart - creating a chart structure with nginx-chart name
+
+checking if chart is correct:
+lint -
+helm lint ./directory - looks for errors and gives clues to correct it. If correct it gives us feedback that it is completed
+template - 
+helm template ./directory (--debug (as option)) - prints ready template with all parameter values that are inside.
+dry run -
+helm install my-release ./directory --dry-run - dry-run flag makes the helm to be installed only as trial for searching errors.
+
+helm functions:
+helps to transform data from one value to another
+like this ---> {{ upper .Values.image.repository }} ---> image: NGINX
+or ----------> {{ quote .Values.image.repository }} ---> image: "nginx"
+or ----------> {{ replace "x" "y" .Values.image.repository }} ---> image: nginy
+or ----------> {{ default "nginx" .Values.image.repository }} ---> image: nginx
+
+helm pipelines:
+like this ---> {{ upper .Values.image.repository }} is equal to {{ .Values.image.repository | upper }} ---> image: NGINX
+
+helm conditionals:
+normal case
+{{ if .Values.exampleValue }}
+    label: {{ .Values.exampleValue }}
+{{ end }} < --- such leaves \n !
+in this case we add -, like this
+{{- if .Values.exampleValue }}
+
+else case
+{{- if .Values.examleValue }}
+    label: {{ .Values.exampleValue }}
+{{- else if eq .Values.orgLabel "hr" }}
+    label: human resources
+{{- end }}
+
+most common case
+{{- if .Values.serviceAccount.create }}
+whole resource yaml
+{{- end }}
+
+scope:
+instead of
+background: {{ .Values.app.ui.bg }}
+foreground: {{ .Values.app.ui.fg }}
+database: {{ .Values.app.db.name }}
+connection: {{ .Values.app.db.conn }}
+
+do
+{{- with .Values.app }}
+{{- with .ui }}
+background: {{ .bg }}
+foreground: {{ .fg }}
+{{- end }}
+{{- with .db }}
+database: {{ .name }}
+connection: {{ .conn }}
+{{- end }}
+release: {{ $.Release.Name }} <---- $ keeps original root without with block
+{{- end }}
+
+
+ranges:
+in values.yaml
+regions:
+    - ohio
+    - newyork
+    - ontario
+
+in template.yaml
+{{- range .Values.regions }} <--- scope is set as with WITH
+- {{ . }}
+{{- end }}
+
+named templates:
+in _helpers.tpl - underscore in templates file tells helm not to use it as manifest file
+inside _helpers.tpl
+{{- define "labels" }}
+    label: example
+{{- end }}
+
+to use it in template.yaml, do
+{{- template "labels" }}
+
+another example with variables inside _helpers.tpl is such
+{{- define "labels" }}
+    label: {{ .Release.Name }}
+{{- end }}
+
+to claim variables outside of helpers file we need to change the scope with directory
+{{- template "labels" . }} <--- only that will work to claim 
+if more spaces/tabs are needed before template, we can make use of | indent
+{{- include "labels" . | indent 2 }} - adds 2 more spaces before template
+
+chart hooks:
+pre-upgrade hook
+to job manifest in templates we have to add additional metadata which is:
+annotations:
+    "helm.sh/hook": pre-upgrade/pre-install/post-delete etc.
+    "helm.sh/hook-weight" : "5" - for example 1 will be done before 5, if there are multiple hooks
+    "helm.sh/hook-delete-policy": hook-succeeded/hook-failed/before-hook-creation - deletes kubernetes resource under certain circumstances
+
+
+packaging and uploading charts:
+helm package ./directory - packs chart to tar archive .tgz
+when we do the packing helm does for us certification and leaves with chart certificate
+so when others download it it can be checked if we as developers signed it or was modified by hackers on the way
+
+gpg --quick-generate-key "Name Surname" - creates public and private key pair
+gpg --export-secret-keys >~.gnupg/secring.gpg - converts keys to older format
+helm package --sign --key "Name Surname" --keyring ~/.gnupg/secring.gpg ./nginx-chart - bounding helm chart to old format keys
+when signing helm chart and packing it, there will be additional file with tgz.prov suffix added.
+helm verify ./file.tgz - verification of helm keys
+
+uploading charts:
+typical chart contains following files: package.tgz index.yaml and provenance.tgz.prov
+helm repo index ./directory --url url-where-chart-is-uploaded - creating index file
+helm repo add name-of-repo url - adding repo to list of repository

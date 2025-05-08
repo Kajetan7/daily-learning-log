@@ -1,0 +1,86 @@
+general:
+
+read -p "Enter mission name:" mission_name - takes user input with additional description
+mission_name=$(command) - assign command output as variable
+
+arithmetic operations:
+
+echo $((A+B))
+9
+only integer numbers
+
+for float type:
+echo $((A+B)) | bc -l
+
+
+conditions schema:
+
+if [ $rocket_status = "failed" ]
+then
+	rocket-debug $mission_name
+elif [ $rocket_status = "success" ]
+then
+	echo "This is successful"
+else
+	echo "badumpts"
+fi
+
+= - equals is only for strings!! check cheatsheets for other types like integers is -eq (equals), -ne (not equal),-gt (greater than), -lt (lower than)
+
+there is also an option of pattern checking and more advanced conditionals with [[ ]] ! check cheatsheets
+
+[ condition1 ] && [ condition2 ] - and operator
+[ condition1 ] || [ condition2 ] - or operator
+
+
+loops:
+for <pc> in <list of pcs>
+do
+	<command> $pc
+
+done
+
+list of pcs can be obtained from separate file, then: `cat <file-name.ext>` or $(cat <file-name.ext>)
+
+range schema:
+{0..100}, or
+for (( i = 0; i <= 100; i++ ))
+
+
+while [ condition ]
+do
+	<command>
+	<optional: break> - breaks the loop
+	<optional: continue> - continues looping
+done
+  
+
+case statements schema:
+
+case $choice in
+	
+	1) shutdown now
+	   ;;
+	2) shutdown -r now
+	   ;;
+	3) break
+	   ;;
+	*) continue
+	   ;;
+
+esac
+
+
+shebang:
+#!/bin/bash
+
+exit codes:
+exit status 0 ---> success
+exit status >0 ---> failure
+$? - variable of exit codes
+
+exit 1 - command when script ends up as planned
+add it to your code to give user a status of prepared script
+
+
+

@@ -1,0 +1,207 @@
+observability splits into 3 pillars: logs, metrics and traces
+traces are made of spans (each steps)
+
+metrics are purely numeric data - as opposite to logs which are text
+
+METRIC = Metric name + value + timestamp + dimensions(keys+values)
+Prometheus is only for metrics
+
+SLI (Service Level Indicator) a metric like availability or runtime, response time.
+SLO (Service Level Object) target value of SLI.
+SLI is latency, SLO is latency < 100ms
+SLA (Service Level Agreement) a legal contract between user and vendor to meet SLO.
+
+Architecture:
+Main prometheus consists of 3 main elements: Retrieval (scraper), TimeSeriesDB(Stores metrics), and HTTP server (promQLqueries)
+There are also exporters (Prometheus targets) which expose services metrics and are discoverable by retrieval.
+Alternatively for short lived jobs there is also Pushgateway (like crons)
+
+For very scalable infra there is Service Discovery (thanks to which Prometheus discovers targets to scrape metrics).
+
+Alertmanager - process which Prometheus is pushing alerts to. It is a tool which triggers and exposes endpoints to connect notifications.
+
+PromUI and Grafana contacts Prometheus via HTTP Server component.
+By default prometheus is collecting metrics from enpoints in servers from /metrics.
+To expose metrics on server you have to install exporter which collects and exposes the metrics for scrape.
+Exporter example: node exporter (for linux servers)
+Prometheus needs to have a list of what to scrape - pull based model.
+
+Installation:
+By default prometheus is set to monitor itself
+expression "up" - gives info whether prometheus is up
+to run prometheus in background it has to be added to systemd
+
+Node Exporter:
+Is an exporter specific for linux hosts which takes metrics from the host and forwards it to prometheus.
+
+To connect Node Exporter to Prometheus instance, we have to configure prometheus in prometheus.yaml file.
+
+Authentication and encryption:
+Traffic between node exporter and prometheus needs to be encrypted with TLS, so hackers don't sniff the packages.
+
+Node exporter needs key and cert of SSL. We can generate it with openssl and add it to config.yaml.
+SSL - self signed certificate - usually not secure, if it would be generated with letsencrypt it would be secure.
+because of that we use curl -k (to allow insecure connection) - but still https is used and TLS traffic.
+
+There is also authentication: you set up a hashed password in node exporter config.yaml and username and password in prometheus.yaml. Once both are done connection can be established.
+
+promtools:
+promtool check config /etc/prometheus/prometheus.yml - validate configuration of prometheus (checks for typos etc.)
+
+
+promQL:
+metric_name{label="label_value", label2="label_value"} - TimeSeries
+metric_name{label="label_value", label2="label_value"}[2m] - returns metrics from 2m past
+metric_name{label="label_value", label2="label_value"} offset 2m - returns metrics from one point 2m to past
+metric_name{label="label_value", label2="label_value"} @unixtime - returns metrics from specific point in time
+
+
+vector matching:
+one-to-one:
+all labels must be the same for sample match - other way operation is not done
+metric_name{label="value"} / ignoring(label2) metric_name - thanks to this we ignore label2 and the matching will do the work
+example
+http_errors{code="404"} / ignoring(code) http_requests - we look for percentage of code 404 in overall http requests which does not have code label!
+metric_name{label2="value"} / on(label) metric_name - works the opposite way to above. pick only label that on specifys.
+example
+http_errors{code="404"} / on(method) http_requests - opposite of ignoring
+
+many-to-one:
+as default promql is doing one-to-one matching. to provide many-to-one we need to make group-left or group-right:
+metric_name + on(label) group_left metric_name2 - makes the sum when metric_name has two labels, and metric_name2 has 1 label based on metric_name labels!
+
+
+aggregation:
+sum(http_requests) - sums all metric vaules no matter what labels are (no label filter)
+max() ..
+avg() ..
+
+to add label filter we do:
+sum by(code) (http_requests) - sums all metric values and diverse it by code! so the result would be sum for 400, sum for 404 etc.
+we can do also that:
+sum by(code, method) (http_requests) - metrics are diversed by pairs of code-method. so 404 get, 404 post etc.
+
+opposite of by is without:
+sum without(code) (http_requests) - metrics are diversed by all pairs except code label
+
+functions:
+celi(node_cpu_seconds_total) - rounds up to closest integer
+floor() - rounds down to closest integer
+abs() - absolute value
+
+scalar(node_cpu_seconds_total) - responds not with metric but just value
+sort(node_cpu_seconds_total) - sorts
+rate(node_cpu_seconds_total[1m]) - takes average per each minute and outputs rate value - IF WE TAKE FOR EXAMPLE GRAPH OF ANY QUERY IT IS USUALLY A COUNTER AND IT IS EXPECTED TO GO UP. BUT WHEN WE DO rate OVER PERIOD OF TIME IT DOES NOT ACCUMULATE.
+important: when using rate always use it first, then aggregate. like that: sum without(code,handler)(rate(http_requests_total[24h]))
+
+subquery: (useful when function expects range vector instead of scalar, like max_over_time)
+rate(http_requests_total[1m]) [5m:30s]
+1m - just for grouping for rate
+5m - 5minute range
+30s - sample every 30s
+
+histogram:
+requests_latency_seconds_bucket{le="0.5", path="/articles"} 50 -- it means that there are 50 metrics which has value below 0.5
+
+recording rules:
+Recording rules allow Prometheus to periodically do PromQL queries and store the results for better responding later.
+Recording rules are set in separate yaml file, under rule_files in prometheus.yaml.
+Changes in rule files requires restart of prometheus server.
+
+HTTP API:
+http://prometheus-ip/api/v1/QUERY
+we can use it like that:
+curl localhost:9090/api/v1/query --data 'query=node_memory_active_bytes{job="node"}' --data 'time=1231232131.12' | jq
+
+
+dashboarding and visualisation:
+with consoles there is a possibility to visualise custom page with html and use prometheus templating.
+
+service discovery:
+if we're in very dynamic environment we use service discovery
+Prometheus can discover multiple endpoints within environment.
+1. File service discovery - import the list from file (like update file with cron)
+scrape_configs:
+  - job_name: example
+    file_sd_configs:
+      - files:
+        - '*.json'
+
+2. AWS example:
+scrape_configs:
+  - job_name: example
+    ec2_sd_configs:
+      - region: <region>
+        access_key:
+        secret_key:
+
+3. relabelling:
+filter-out, rename, delete some of the labels from metrics scraped from multiple sources through service discovery
+
+A>changing label:
+scrape_configs:
+  - job_name:
+    relabel_configs: relabeling occurs before scrape
+      - source_labels: [...] - what label to match
+        regex: prod - select specific value
+        target_label - name of new label
+        action: keep | drop | replace | labeldrop | labelkeep - keep we scrape this target, drop is that we no longer scrape target, replace is replace
+        replacement: $1 - selects first thing in () that are in regex. like (kupa).(.*) takes $1=kupa, $2=anything
+    
+B>dropping label
+scrape_configs:
+  - job_name:
+    relabel_configs: relabeling occurs before scrape
+      - regex: prod
+        action: drop
+
+    
+C>dropping whole metric
+scrape_configs:
+  - job_name:
+    metric_relabel_configs: relabeling occurs after scrape 
+      - source_labels: [__name__]
+        regex: prod
+        action: drop
+
+push gateway:
+middle man between prometheus and job.
+When job ends, it disappears, and prometheus has no point to scrape from.
+Hence, we've got Push gateway which is target for job, and source(endpoint) of metrics for prometheus.
+
+it is normally installed (possibly on the same server as prometheus).
+
+
+alerting:
+Prometheus is only responsible for triggering alerts.
+Alertmanager is responsible for sending notifications to multiple endpoints.
+Alertmanager can receive alerting from multiple prometheus instances 
+
+in rules.yaml
+groups:
+  - name: Node
+    rules:
+    - alert: LowMemory
+      expr: node_memory_memFree_percent < 20
+      for: 5m - if expression is true for 5m it triggers alert to remove false positives
+      labels:
+        severity: warning - label for the alert to classify alerting
+      annotations:
+        description: "filesystem {{.Labels.device}} on {{.Labels.instance}} is low on space, current available space is {{.Value}}"
+
+
+Prometheus on Kubernetes:
+There are many endpoints to scrape if we have prometheus on k8s cluster:
+control-plane, like api-server, coredns, kube-scheduler
+kubelet(cAdvisor) - exposing container metrics
+Kube-state-metrics - clsuter level metrics
+node-exporter - run on all nodes for host related metrics (cpu, mem, network) - usually daemonSet deployed on every node in cluster
+
+CRD - custom resource definition (kubectl get crd)
+service monitor - defines targets from which prometheus can scrape
+if we want to scrape from service, we create a ServiceMonitor (a custom resource)
+we connect servicemonitor with service thanks to match selectors like labels.
+
+PrometheusRule - another CRD which we can define rule
+AlertmanagerConfig - CRD which sets configuration of alert manager as kubernetes resource
+

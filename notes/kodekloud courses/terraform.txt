@@ -1,0 +1,279 @@
+
+resource "provider_resource" "resource_name" {
+    argument = "argument_value"
+}
+
+TERRAFORM COMMANDS (COMMAND LINE):
+terraform init - check config file and downloading plugins for providers declared in tf files.
+terraform plan - displays execution plan
+terraform apply - displays execution plan, asks user to confirm, and executes infra deploy
+terraform show - displays details of created resources from state file
+terraform output - displays value of output variables
+terraform validate - checks for errors in configuration files (useful instead of fmt) gives hints!
+terraform providers - lists all providers used in configuration file (can be mirrored to other files as well with mirror command)
+terraform output - prints out all the outputs from the configuration file (can add name of output to have exclusive output printed)
+terraform refresh - refreshes state (automatically run during plan and apply)
+terraform graph - generates graphical file of infra provisioned by terraform
+
+-/+ symbol in tf plan will delete and recreate the resource
+This is called immutable infrastructure
+
+terraform destroy - destroys all the resources in configuration file directory
+
+HCL - hashicorp configuration language
+
+input variables:
+
+in variables.tf
+variable "name_of_variable" {
+    default = "variable_value"
+    type = string, number, bool
+    description = "Description"
+}
+
+to use it add var prefix in terraform resources.
+
+Types:
+string = "/root/pets.txt"
+number = 1
+bool = true/false
+any = Default Value
+list = ["cat", "dog"] - operating like python list (ex. var.example[0])
+map = {
+    pet1 = cat
+    pet2 = dog
+} - operating like a simplified dictionary in python (ex. var.example[pet1])
+    
+object = Complex Data Structure - similar to dictionary in python
+tuple = Complex Data Structure
+
+list of a type example: (same applies to map of a type)
+variable "name_of_variable" {
+    default = [ 1, 2, 3 ]
+    type = list(number)
+
+
+set is similar to the list but can not duplicate elements!
+
+object example:
+variable "bella" {
+    type = object({
+        name = string
+        age = number
+        food = list(string)
+    })
+    default = {
+        name = "bella"
+        age = 7
+        food = ["fish", "chicken"]
+    }
+}
+
+tuple example: - immutable list with determined type of elements
+variable "dona" {
+    type = tuple([number, string, bool])
+    default = [42, "hello", true]
+}
+
+this method is for empty variables to be filled in tf apply:
+
+terraform apply -var "variable_name=example"
+terraform apply -var-file variables.tfvars
+
+when variable is declared in terraform it can be assigned to value with environment variable:
+export TF_VAR_variable_name="example_value"
+terraform apply
+
+if many variables a new file terraform.tfvars/terraform.tfvars.json/*.auto.tfvars/*.auto.tfvars.json  can be created and have declaration inside like that:
+filename = "/home/file.txt"
+content = "Shit"
+prefix = "Mrs"
+
+when comes to multiple variables which are declared, terraform first takes:
+1. command line flags variables (taken as most priority)
+2. env variables
+3. terraform.tfvars variables
+4. *.auto.tfvars variables
+
+resource attribute:
+When we want to make reference to existing other resource and use its output it can be referenced as follows:
+resource_type.resource_name.id - this expression takes other resource and uses its id
+
+resources dependencies:
+when using reference to other resource like resource_type.resource_name.id, the resource referenced is always provisioned first.
+however when no reference, depends_on argument can be added to resource config:
+
+depends_on = [
+    resource_type.resource_name
+]
+
+outputs - method to display demanded thing on the screen when terraform apply.
+        - also a good method to deliver output to toher IaC tools such Ansible
+
+output output_name {
+    value = resource_type.resource_name.id - example
+    description = "Example description of what is displayed"
+}
+
+State:
+by default state file is named terraform.tfstate
+
+Mutable and immutable infrastructure:
+mutable - like update in place (changing in place)
+immutable - unchanged like creating new machines for updates (rolling update)
+terraform approaches the method of rolling update
+
+lifecycle rules:
+
+resource "example_resource_type" "example_name" {
+    filename = "tralala"
+
+    lifecycle {
+        create_before_destroy = true
+    }
+}
+
+other types of lifecycle rules are prevent_destroy (prevents destroy when update),
+    ignore_changes (ignore changes to resource attribute)
+
+datasources: allows to read resources that are outside of terraform control, READ not provision
+
+data "datasource_type" "example_name" {
+    filename = "name"
+}
+
+it can be referred similar to var: data.datasource_type.example_name.content
+
+META-ARGUMENTS: (attributes such as depends_on or lifecycle)
+
+count: (a resource with count meta-argument is a resource list not a single resource)
+
+resource "example_resource_type" "example_name" {
+    filename = var.name[count.index]
+
+    count = length(var.name)
+}
+
+in variables.tf
+variable "name" {
+    default = [
+        'root/pets.txt',
+        'roots/cats.txt',
+        'roots/dogs.txt'
+    ]
+}
+
+for-each: (a resource with for_each meta-argument is a resource map not a signle resource or list! in this case it will not re-create/destroy each resource from the list)
+
+resource "example_resource_type" "example_name" {
+    filename = each.value
+
+    for_each = var.name
+}
+
+in variables.tf
+variable "name" {
+    type = set(string) <----- type of variable is really important
+    default = [
+        'root/pets.txt',
+        'roots/cats.txt',
+        'roots/dogs.txt'
+    ]
+}
+
+if no willing to change variable type, we can do a to_set function: for_each = toset(var.name) <--- which changes type of variable in resource_name
+
+version constraints:
+if for some reason we need a specific version of provider (not default), a terraform block can be downloaded from documentation page.
+such this
+
+terraform {
+    required_providers {
+        local = {
+            source = "hashicorp/local"
+            version = "1.4.0" <---- we can do !=, >, < etc (~> 1.2 means 1.2 or higher when release, 1.2.0 then 1.2.1, 1.2.2 etc)
+        }
+    }
+}
+
+Terraform in AWS:
+IAM = RBAC 
+
+reference to external file:
+policy = file("admin-policy.json")
+
+S3: similar to storage account in Azure
+buckets = containers
+
+state commands:
+terraform state list - lists all resources in state without details
+terraform state show - lists all info about resources in state
+terraform state mv - 
+terraform state rm - 
+
+EC2 in AWS:
+similar to Virtual Machines scale sets
+
+EBS volume similar to Azure Disks
+
+to input a file as a key in terraform we can use function like this:
+public_key = file("/root/.ssh/web.pub")
+
+provisioner - we call it the block of functions on VM to be done for ex. in bash.
+
+terraform taint:
+if resource is tainted must be recreated
+it is a marking for a resource which states that in next apply the resource will be recreated
+useful in updates for example?
+
+debugging in terraform:
+exoirt TF_LOG=TRACE, when we add this env then when do tf apply a lot more logs are printed
+export TF_LOG_PATH=/tmp/terrafomr.log - setting env to export logs to log file
+
+terraform import - importing existing infrastructure to state file
+
+terraform import resource_type.resource_name <attribute> - this imports existing file to state
+but, there have to be some record of it in configuration file - so we add empty resource block with same name.
+
+modules:
+
+module "example_name" {
+    source = "../"
+    parameter1 = ".."
+    parameter2 = ".."
+}
+
+more terraform functions:
+terraform console - interactive console that have temporary in-build state
+numbers:
+max(var.num...) - max value of variable num (num is list in this case)
+ceil(10.1) - round to whole number up (11 in this case)
+floor(10.1) - round to whole number down
+strings:
+split(",", "string,string,string") - returns ["string", "string", "string"]
+join(",", ["string", "string", "string"]) - returns "string,string,string"
+lower(var.example) - lowercases all letters in string
+upper(var.example) - uppercase all letters in string
+title(var.example) - first letters upper in string
+substr(var.example, 0, 7) - cuts the string and remains from sign 0, and +7
+array:
+lenght(var.example) - length of list elements
+index(var.example, "element2") - returns 1, as it is second element in list
+element(var.example, 1) - returns "element2"
+contains(var.example, "element2") - returns true
+map:
+keys(var.example_map) - returns list of keys
+values(var.example_map) - returns list o values
+lookup(var.example, "key", "none") - returns value, or none (none only when key is not in map)
+
+conditional expressions:
+== - equals operator
+&& - AND operator (both values are true)
+|| - OR operator (only one is true)
+! - nod operator (returns opposite value, ex. ! true returns false)
+
+condition ? true_val : false_val - syntax of conditional expression
+
+workspaces:
+terraform workspace new ProjectExampleName - command to create workspace
+terraform.workspace - reference in config file to name of workspace

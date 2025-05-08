@@ -1,0 +1,9 @@
+ Stages of PowerBI development:
+ 1. Data discovery and shaping
+ 2. Data modelling
+ 3. Data visualisation (reports)
+ 4. Data sharing
+
+ 1:29:00 https://www.youtube.com/watch?v=77jIzgvCIYY
+
+

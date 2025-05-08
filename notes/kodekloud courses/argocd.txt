@@ -1,0 +1,125 @@
+GitOps can be considered as extension of IaC that uses Git as the version control system.
+ 
+ ArgoCD terminology:
+ application - kubernetes resources created by manifest
+ application source type - tool used to build application like helm or kustomize
+ project - logical grouping of applications
+
+ target state - desired (git repo based) state of application
+ live state - live state of app, what pods, configmap, secrets are created in cluster
+
+ sync status - whether the live state match the target state
+ sync - process of moving from live to target state
+ sync operation status - whether of not sync suceeded
+
+ refresh - compare latest code in git with live state
+ health - is app running correctly?
+
+ argocd architecture:
+ argocd is installed on cluster as pod/service
+
+ argocd application is a set of source (git repo, helm) and destination (kubernetes cluster server, namespace etc.)
+
+ UI application creation:
+ 1. new repo declaration in argo UI
+ 2. new app declaration in UI
+ 
+ CLI application creation:
+ argocd app create - creating app
+ argocd app list - listing apps 
+
+ projects:
+ argocd proj list
+ 
+ reconciliation loop:
+ how often your gitops will pull from repo
+ default 3 minutes but can be changed in argocd config map
+ api server can be triggered to pull repo based on webhook. with webhook we remove pulling delay.
+
+application health checks:
+there are 6 typical health checks in argo
+healthy - application resources are healthy
+progressing - resources are unhealthy but can be healthy any time
+degraded - resources indicates failure
+missing - resource not present in cluster
+suspended - resource paused
+unknown
+
+for typical kubernetes resources it checks:
+
+service: Load Balancer resources exists, status.loadBalancer.ingress list not empty, hostname or IP has at least one value
+ingress: status.loadBalancer.ingress is not empty, hostname or IP has at least one value
+deployment/replicaset/statefulset/daemonset: observed Gen = deserved Gen, updated replicas = desired replcicas
+persistentvolumeclaim: status.phase = Bound - check if pvc is actually bounded to pv
+configmaps: argocd just checks if configmap exists. for more specialized checks we need to write custom health check in Lua script
+
+custom health check:
+to application config map we need to add data field:
+
+apiVersion: v1
+kind: configmap
+data:
+  resource.customizations.health.ConfigMap: |
+    hs = {}
+    hs.status = "Healthy"
+      if obj.data.TRIANGLE_COLOR == "white" then
+        hs.status = "Degraded"
+        hs.message = "Use different COLOR for TRIANGLE"
+      end
+    return hs
+metadata:
+...
+
+types of sync strategies:
+- manual or automatic sync - apply changes in yamls to infra. does not apply the prune.
+- auto-pruning of resources - apply deletions in yamls to infra. does not sync additionals!
+- self-heal of cluster - re-stores resources when someone deletes something manually (CLI for example).
+
+application synchronization:
+in argo even that we change yaml file, the ui will show out of sync.
+when clicking auto-sync in ui it is possible to change sync strategies.
+
+
+declarative setup:
+application config files for argocd can be stored in same repo as kubernetes manifests
+yamls can be found in argocd after deployment of application for example.
+
+app of apps:
+single argo-cd application which points to directory where all other applications argo yamls are stored.
+thanks to this we are able to deploy multiple applications with one trigger.
+
+helm chart deployment:
+--helm-set flag enables to change values.yml config
+
+multi-cluster application deployment:
+depends on targets in argocd (argocd cluster list)
+cluster has to be added to kubeconfig file:
+kubectl config get-contexts - define contexts with other clusters
+argocd cluster add - takes context from kubeconfig
+argocd cluster add <cluster-name> - adding to argocd second cluster
+
+(TIP:kubectl -n argocd get secrets cluster-165.22.209.118 -o json | jq .data.server -r | base64 -d - decoding server ip when kubectl coded it!)
+
+RBAC:
+kubectl -n argocd patch configmap argocd-rbac-cm --patch='{"data":{"policy.csv":"p, role:create-cluster, clusters, create, *, allow\ng, name, role:create-cluster}}'
+- adding create-cluster role in argocd configmap
+argocd account can-i create clusters '*' - checking if user or sso can create cluster
+
+kubectl -n argocd patch configmap argocd-cm --patch='{"data":{"accounts.jai": "apiKey,login"}}'
+- adding new account (jai) to configmap. this user can create JSON web token auth (apiKey) to use api, login allows to use UI.
+
+DEX - forwarder between idP (identity provider) and user application. idP stores identity. Thanks to configmap of argocd dax provides connection.
+
+Bitnami sealed secrets:
+sealed secrets are an app installed as helm in kube-system namespace (controller).
+kubeseal is an application running outside of cluster to seal secret created with kubectl.
+with kubectl we have to create a sealed secret encrypted with base64 first. (simple cli command, this can't be pushed to repo!)
+after that we take sealed secret public certificate from kube-system - it has tls.crt which will be used for later decrypting.
+with certificate we can use kubeseal to seal our secret with tls certification.
+thanks to this no-one else except kubecontroller running on this specific cluster will not be able to decrypt the secret. (this thing can be stored in repo)
+
+hashicorp vault:
+argocd vault plugin fetches secrets from hashicorp vault - (it is another app in cluster)
+in general: in repo we store only reference to keyvault
+only argocd can access keyvault and thanks to that only argocd can provision this specific resource in kubernetes
+

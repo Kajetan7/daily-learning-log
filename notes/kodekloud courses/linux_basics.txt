@@ -1,0 +1,216 @@
+uptime - how long systems runs for since last reboot
+pwd - print working directory
+mkdir - make directory
+cd - change directory
+ls - list contents (-a - all with hidden, -l - long list with  all with details, -lt - order created)
+-p - parent directory
+
+pushd / popd - zmienia home directory 
+
+cat > trala.txt - overwrite entry file (ctrl + d - save and return)
+touch - generates new empty file
+
+whatis <command> - what command does
+man <command> - details of command
+<command> --help
+apropos <part of command> - list commands and descriptions which contains this string
+
+env - list all enviroment variables
+export OFFICE=caleston - creates new enviroment variable
+
+uname - name of kernel
+uname -r - kernel version
+dmesg - kernel logs
+dmseg | grep -i usb - kernel logs filtrated by usb name
+
+udevadm monitor - devices attached to pc
+
+lspci - all pci devices in system (cards etc) periferral component interconect
+lsblk - all block devices (such as partitions)
+
+lscpu - display information about cpu architecture
+lsmem --summary - list memory summary (ram)
+free -m(-k, -g) - free ram in mb, kb, gb
+
+lshw - detailed information regarding entire hardware config
+
+runlevel - operation mode list (3 - nongraphical mode, 5 - graphical mode)
+
+file - command that describes file type
+
+df - prints all drives attached
+
+sudo ls -l /sbin/init - looks for what is init process
+
+LINUX BOOT:
+BIOS POST > BOOT LOADER (GRUB2) > KERNEL INITIALIZATION > INIT PROCESS (systemd)
+
+
+FILESYSTEM HIERARCHY:
+/ - root directory
+/home - home directory for user
+/root - home directory for root
+/opt - 3rd party programs location
+/mnt - temporary location for mounting file systems (after usage - unmount)
+/tmp - location to store temporary data (after usage - delete)
+/media - all external data location (such as usb drive)
+/dev - location for external devices (such as keyboard, mouse)
+/bin - basic linux programs and binaries (commands mv, mkdir, cd etc)
+/etc - configuration files for linux
+/lib - shared libraries to import to your programs
+/usr - location where user applications are (such as mail)
+/var - directory where systems writes data such as logs, and cache
+
+
+Package managers:
+RPM - Red Hat package manager (YUM bases on that)
+DPKG - Debian package manager (apt and apt-get bases on that)
+
+yum repolist - lists yum repos on pc
+
+du -sh - show size of file in mb human readible format
+ls -lh - lists file with details including size
+
+tar -zcf - compresses the file from several other files
+tar -tf - lists contents of tarball
+tar -xf - extracts contents of tarball (or gunzip and directory)
+
+locate <file.txt> - locates in all directories file (location established with file db - to use it use updatedb first)
+find <directory/directory> -name <filename> - searches for the file in given direcotry
+
+grep -i - find in file insensitive
+grep -r - find all names in whole directory
+grep -v - all files which does not contain this string
+grep -w - only files which specifically suits the word
+
+
+> - output overwrites the file
+>> - add output to the end of a line (or create the file)
+2> - error output overwrites the file
+2>> - error output added to the end of a line (or create the file)   
+
+
+vi:
+/line - in command mode finds first match of line word (n forward, N backwards)
+
+dd - in command mode cuts out the line
+yy - in command mode copies the line
+p - pastes the line
+
+:w - save file within editor
+:q - exit file
+:wq - save and exit
+:q! - exit without saving
+
+
+Networking:
+ip link -  see interfaces of the hosts
+ip addr add <> dev eth0 - adding ip address to the network
+ip route - displays routing table of kernel
+ip route add <second-network> via <gateway ip> - add route that we connect with network via this gateway
+ip route add default via <gateway ip> - add route that we connect with any network via this gateway (such as connecting to internet) default can be 0.0.0.0
+
+** to persist changes above put them in /etc/network/interfaces **
+
+ 
+network troubleshooting:
+1. ip link - check that state is up
+2. nslookup <host-name> - check that DNS has got valid ip set up as host name
+3. ping <host-name> - check connectivity
+4. traceroute <ip of host> - checks whole trace route to the address we want to connect to
+5. on server: ip link - check web interface state for the server
+
+
+accounts:
+id - information about the user and groups
+who - info about the user
+last - info about the users and system and time when system was rebooted
+
+su - - you can switch to any other user
+/etc/sudoers - policies for sudo command (list of users that can use sudo)
+/etc/passwd - password file, basic info about the users
+/etc/shadow - file contains passwords for users hashed
+/etc/group - all user groups on the system
+1st Jan of 1970 - unix time
+
+useradd <name> - setting new user
+passwd <name> - setting password for user
+userdel <name> - delete user
+groupadd / groupdel - adding / deleting group
+
+file permissions:
+chmod <permissions> file
+
+chown owner:group file - changes owner and group of a selected file
+
+ssh:
+port 22
+scp - cp command within ssh connection
+
+IPtables:
+iptables -L - list all iptables
+iptables -A INPUT/OUTPUT -p tcp -s/-d <ip> --dport 22 -j ACCEPT/DROP - schema for adding chains to iptables
+
+CRONJOBS: task scheduling
+crontab -e - enter cronjob editing file
+crontab -l - list all the cronjobs
+
+SYSTEMD:
+/etc/systemd/system/<file>.service
+
+systemctl start <file>.service - running systemd service in the background
+systemctl status <file>.service -  check running status
+systemctl stop <file>.service - stopping
+
+systemctl deamon-reload - for the system to detect changes in a file need to do this
+
+systemctl edit <file>.service --full - editing in vi the service
+systemctl list-units --all - all services on pc
+
+journalctl -b - prints all of the logs since boot
+journalctl -u <unit-name> - logs for the specific thing 
+
+
+STORAGE:
+
+partitions:
+gdisk /dev/<disk-name> - menu driven interface to create partitions on disk
+
+filesystems:
+mkfs.ext4 /dev/<disk-name> -  allocating file system to the block device
+mkdir /mnt/ext4; - create directory in mount dir
+mount /dev/<disk-name> /mnt/ext4 - mount the file dir
+
+/etc/fstab - add entry after system reboot to attach filesystem
+
+DAS - Direct attached storage
+NAS - Network attached storage
+SAN - Storage Area Network
+
+NFS - Network File System
+
+LVM:
+
+LVM - Logical Volume Manager (allows auto scalling as long as there is space in volume group) 
+
+pvcreate /dev/sdb - creating physical volume called sdb
+vgcreate <name> /dev/sdb - creating volume group on top of sdb
+pvdisplay - display physical volumes details
+vgdisplay - volume group details
+lvcreate -L 1G -n vol1 <vgname>
+lvdisplay - display logical volume details
+lvresize -L +1G -n /dev/<vgname>/vol1 - resize logical volume
+resize2fs /dev/<vgname>/vol1 - adjust filesystem to resized logical volume
+
+df -hP /mnt/vol1 - prints details of mounted volume
+
+top - lists all running processes on machine
+
+cat /etc/*release* - check linux version installed on machine
+cat /usr/lib/os-release - check linux version
+
+/etc/ssl/certs - location of ssl certificates on machine
+
+ps - prints running processess on machine
+kill -9 <PID-from-ps> - kills running process
+

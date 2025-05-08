@@ -1,0 +1,37 @@
+
+
+git restore --staged <file> - take out file from staging area to working area
+git rm --cached - take out a file from staging and taking to untracked
+
+.gitignore - file in git repo to ignore while adding to stage and commit area
+
+git log - shows up information about commits (--name-only - shows the files commited)
+
+git branch - shows up all the branches
+git branch -a - shows up all the branches remote and local
+
+HEAD - last commit of branch your currently on
+
+git remote add origin <url> - we define origin as alias
+git remote -v - shows all the remote repositories
+
+git fetch - uploads the data from remote repo
+git merge origin/master - after fetch you can merge remote version of branch with local
+git pull - git fetch and merge combined
+
+git rebase origin <branch> - takes as the reference to origin last commit on remote branch
+
+git rebase -i HEAD~4 - rebasing interactively 4 last commits
+
+git revert <hash> - creates new commit with all oposite changes from the commit with hash we have input
+
+git reset --soft HEAD~1 - deletes 1 last commit and keep the changes in staging area
+git reset --hard HEAD~1 - deletes 1 last commit and does not keep the changes in staging area
+
+git stash - takes commit from staging area to stash area
+git stash pop - takes last commit from stash to staging area
+git stash list - lists all the files in stash
+
+git reflog - git list of all changes on repo
+git reset --hard <hash-from-reflog> - undo the change from reflog
+

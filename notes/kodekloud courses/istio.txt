@@ -1,0 +1,81 @@
+Service mesh - abstract infrastructure layer which takes together all sidecar proxies from microservice pods.
+               It is controlled by control plane. Data plane is abstract layer controlled by control plane.
+               It is responsible for traffic management between proxies, securie tls connection, observability, load balancing, health check.
+
+Istio - service mesh
+      - uses envoy as proxy sidecar
+
+control plane consists 3 componenst: citadel (manage certificate generation), pilot (service discovery) and galley (validate configuration files).
+                                     Right now it is single component: Istiod
+
+Along with envoy proxy inside each microservice pod there is istio agent.
+
+istioctl install --set profile=demo -y - installing demo of istio
+istioctl verify-install - veryfiyng if istio is installed
+
+kubectl label namespace default istio-injection=enabled - before applying any resource if we want istio sidecar on it, we have to enable the flag on specific namespace
+istioctl analyze - gives info about errors in istio
+
+Kiali - observability addon for istio
+
+Gateways:
+Normally in k8s cluster we use ingress controller such as ingress which routes traffic outside of cluster to specific service.
+Istio, however, recommends other approach - Istio Gateway.
+Istio Gateway are load balancers sitting at the edge of the service mesh.
+Inside istio-system namespace we have istiod, istio-ingress gateway, and istio-egress gateway.
+Istio-ingress and egress gateways are standalone envoy proxies at the edge of service mesh (not sidecars).
+There can be multiple gateway controllers (like custom for several inbound directories).
+
+To use ingress controller we have to deploy gateway kubernetes object.
+
+kubectl get gateway - lists all gateway objects deployed
+
+NORMAL ISTIO SETUP:
+Istio Ingress Gateway ----> APPLICATION ----> VirtualService -----> Subset v1 ----> Application v1
+                                                             -----> Subset v2 ----> Application v2
+Virtual services:
+all routing routes within ingress gateway and service are set in virtual services.
+It is kubernetes object kind: VirtualService.
+Virtual services are the objects which can manage traffic proportions in between the hosts or gateways and hosts (or rather subsets).
+
+Destination rules:
+**Subsets are defined in destination rules!** They can match specific host to connect traffic between virtual service and host.
+Other feature of subsets is that they can act as load balancers - in destination rules you can set for each subset a load balancer traffic policy.
+Another feature of subsets is that they can set TLS encrypted connection - there is a special place in config yaml to set up certificates.
+
+TIP:
+For testing traffic do while loop;
+while sleep 0.01;do curl -sS 'http://'"$INGRESS_HOST"':'"$INGRESS_PORT"'/productpage'\ &> /dev/null; done
+
+In general destination rules can distribute traffic load between multiple versions of application.
+
+Fault injection: test approach
+in VirtualService spec we can add http: fault (delay and abort) for testing purposes.
+
+timeouts:
+if service which is nested inside application is giving delays it would affect all applications in levels above.
+To avoid these delays it is obvious to set a timeout which will throw an error to avoid piled up delays.
+Good practice is to add a timeout in application in level above to cover timeout in app below.
+To test it we can add a fault injection in virtualservice. 
+
+retries:
+I can configure multiple retry attempts within virtualservice and specify timeout per each try:
+retries:
+  attempts: 3
+  perTryTimeout: 2s
+
+circuit breaking:
+configured in destinationrules, I can specify maxConnections. So when one request is pending, other requests will be denied to avoud piling up.
+We can also specify httpMaxPendingRequests to specify how many requests can be pending in line.
+
+Security in Istio:
+PeerAuthentication - type of k8s source which specifies policy of mtls traffic within cluster.
+                     Example. workload-specific when selector matches label, namespace-specific when no label selector
+                     , or mesh-wide when namespace is set to istio-system.
+
+Authorization:
+We can add AuthorizationPolicy resource to handle the authorization.
+1) when spec is empty in yaml - the traffic is blocked
+2) when adding selector and action - we can set authorization to specific selected group
+
+certificates management:
